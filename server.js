@@ -25,7 +25,7 @@ app.post("/whatsapp", (req, res) => {
   const msg = norm(body);
 
   // Candidate asks for a human
-  if (msg === "human" || msg === "agent" || msg.includes("speak to a human")) {
+  if (msg.includes("human") || msg.includes("agent")) {
     humanMode.set(from, true);
     const reply = `
       <Response>
