@@ -15,8 +15,12 @@ app.get("/", (req, res) => {
 });
 
 app.post("/whatsapp", (req, res) => {
-  const from = req.body.From; // e.g. "whatsapp:+447..."
+  console.log("RAW req.body =", JSON.stringify(req.body, null, 2));
+
+  const from = req.body.From;
   const body = req.body.Body || "";
+  ...
+});
 
   console.log("✅ Incoming WhatsApp");
   console.log("From:", from);
