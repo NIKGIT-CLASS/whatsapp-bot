@@ -1,6 +1,8 @@
-mport express from "express";
+import express from "express";
 
 const app = express();
+
+// IMPORTANT: Twilio sends webhooks as x-www-form-urlencoded (form data)
 app.use(express.urlencoded({ extended: false }));
 
 // In-memory handover state (resets if Render restarts)
@@ -15,64 +17,61 @@ app.get("/", (req, res) => {
 });
 
 app.post("/whatsapp", (req, res) => {
+  // 1) Debug: show EXACTLY what Twilio sent us
+  console.log("✅ /whatsapp webhook hit");
   console.log("RAW req.body =", JSON.stringify(req.body, null, 2));
 
-  const from = req.body.From;
-  const body = req.body.Body || "";
-  ...
-});
-
-  console.log("✅ Incoming WhatsApp");
-  console.log("From:", from);
-  console.log("Body:", body);
-
+  // 2) Read values robustly (belt & braces)
+  const from = req.body.From ?? req.body.from ?? "unknown";
+  const body = req.body.Body ?? req.body.body ?? "";
   const msg = norm(body);
 
-  // Candidate asks for a human
+  console.log("From:", from);
+  console.log("Body:", body);
+  console.log("Msg:", msg);
+
+  // 3) HUMAN handover triggers (candidate)
   if (msg.includes("human") || msg.includes("agent")) {
     humanMode.set(from, true);
-    const reply = `
+    return res.type("text/xml").send(`
       <Response>
         <Message>No problem — I’ll hand you to a person now. Please hold on.</Message>
       </Response>
-    `;
-    return res.type("text/xml").send(reply);
+    `);
   }
 
-  // You can turn bot back on (you may want to restrict this later)
-  if (msg === "bot on" || msg === "ai on" || msg === "resume") {
-    humanMode.set(from, false);
-    const reply = `
-      <Response>
-        <Message>Bot is back on ✅ Ask me anything.</Message>
-      </Response>
-    `;
-    return res.type("text/xml").send(reply);
-  }
-
-  // Optional: force bot off
+  // 4) BOT OFF (force human mode)
   if (msg === "bot off" || msg === "ai off" || msg === "pause") {
     humanMode.set(from, true);
-    const reply = `
+    return res.type("text/xml").send(`
       <Response>
         <Message>Bot paused. A human will take over. Type BOT ON to resume.</Message>
       </Response>
-    `;
-    return res.type("text/xml").send(reply);
+    `);
   }
 
-  // If this number is in human mode, stay quiet (no auto-reply)
+  // 5) BOT ON (resume bot)
+  if (msg === "bot on" || msg === "ai on" || msg === "resume") {
+    humanMode.set(from, false);
+    return res.type("text/xml").send(`
+      <Response>
+        <Message>Bot is back on ✅ Ask me anything.</Message>
+      </Response>
+    `);
+  }
+
+  // 6) If in human mode, stay quiet (no auto-reply)
   if (humanMode.get(from) === true) {
+    console.log("Human mode active for:", from, "— staying quiet.");
     return res.type("text/xml").send("<Response></Response>");
   }
 
-  // Normal (bot-on) reply for now
-  const reply = `
+  // 7) Default reply (bot mode)
+  return res.type("text/xml").send(`
     <Response>
       <Message>👋 I got your WhatsApp message! (Type HUMAN any time to speak to a person.)</Message>
     </Response>
-  `;
-  return res.type("text/xml").send(reply);
+  `);
 });
 
 const PORT = process.env.PORT || 3000;
